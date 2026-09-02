@@ -1,5 +1,12 @@
 import { supabase } from "./supabase";
-import type { Student, Schedule, Payment, Settings } from "./types";
+import type {
+  Student,
+  Schedule,
+  Payment,
+  Settings,
+  AppRequest,
+  AppPortal,
+} from "./types";
 
 // ---------- Students ----------
 export async function fetchStudents(): Promise<Student[]> {
@@ -113,4 +120,54 @@ export async function saveSettings(
     .single();
   if (error) throw error;
   return data as Settings;
+}
+
+// ---------- Portal (Mi Aplicación) ----------
+export async function fetchPortal(): Promise<AppPortal | null> {
+  const { data, error } = await supabase
+    .from("app_portal")
+    .select("*")
+    .eq("id", "portal")
+    .maybeSingle();
+  if (error) throw error;
+  return (data as AppPortal) ?? null;
+}
+
+export async function fetchRequests(): Promise<AppRequest[]> {
+  const { data, error } = await supabase
+    .from("app_requests")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data as AppRequest[];
+}
+
+export async function createRequest(prompt: string, userId: string): Promise<AppRequest> {
+  const { data, error } = await supabase
+    .from("app_requests")
+    .insert({ kind: "prompt", prompt, created_by: userId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as AppRequest;
+}
+
+// Queue a rollback to the state before `req` was applied.
+export async function createRevert(req: AppRequest, userId: string): Promise<AppRequest> {
+  const { data, error } = await supabase
+    .from("app_requests")
+    .insert({
+      kind: "revert",
+      prompt: `Revertir al estado anterior a: ${req.prompt.slice(0, 80)}`,
+      revert_of: req.id,
+      created_by: userId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as AppRequest;
+}
+
+export async function markRequestSeen(id: string): Promise<void> {
+  await supabase.from("app_requests").update({ seen: true }).eq("id", id);
 }

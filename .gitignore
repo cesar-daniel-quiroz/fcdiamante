@@ -10,3 +10,6 @@ dist-ssr
 
 # vite temp
 vite.config.ts.timestamp-*.mjs
+
+# ts build info
+tsconfig.tsbuildinfo

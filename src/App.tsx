@@ -6,10 +6,11 @@ import {
   CalendarClock,
   Settings as SettingsIcon,
   ShieldCheck,
+  Sparkles,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import type { Student, Schedule, Payment, Settings } from "@/lib/types";
+import type { Student, Schedule, Payment, Settings, Capability } from "@/lib/types";
 import { fetchStudents, fetchSchedules, fetchPayments, fetchSettings } from "@/lib/db";
 import Login from "@/features/Login";
 import Dashboard from "@/features/Dashboard";
@@ -18,11 +19,19 @@ import Pagos from "@/features/Pagos";
 import Horarios from "@/features/Horarios";
 import Usuarios from "@/features/Usuarios";
 import Ajustes from "@/features/Ajustes";
+import MiAplicacion from "@/features/MiAplicacion";
 
-type Tab = "dashboard" | "alumnos" | "pagos" | "horarios" | "usuarios" | "ajustes";
+type Tab =
+  | "dashboard"
+  | "alumnos"
+  | "pagos"
+  | "horarios"
+  | "usuarios"
+  | "miaplicacion"
+  | "ajustes";
 
 export default function App() {
-  const { session, loading, isAdmin, profile, signOut } = useAuth();
+  const { session, loading } = useAuth();
 
   if (loading) {
     return (
@@ -32,19 +41,11 @@ export default function App() {
     );
   }
   if (!session) return <Login />;
-
-  return <Shell isAdmin={isAdmin} profileName={profile?.full_name || null} signOut={signOut} />;
+  return <Shell />;
 }
 
-function Shell({
-  isAdmin,
-  profileName,
-  signOut,
-}: {
-  isAdmin: boolean;
-  profileName: string | null;
-  signOut: () => Promise<void>;
-}) {
+function Shell() {
+  const { profile, isAdmin, can, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>("dashboard");
   const [students, setStudents] = useState<Student[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -75,17 +76,30 @@ function Shell({
     })();
   }, [reloadStudents, reloadSchedules, reloadPayments, reloadSettings]);
 
-  const nav: { id: Tab; label: string; icon: typeof LayoutDashboard; admin?: boolean }[] = [
+  const nav: {
+    id: Tab;
+    label: string;
+    icon: typeof LayoutDashboard;
+    cap?: Capability;
+    admin?: boolean;
+  }[] = [
     { id: "dashboard", label: "Panel", icon: LayoutDashboard },
-    { id: "alumnos", label: "Alumnos", icon: Users },
-    { id: "pagos", label: "Pagos", icon: DollarSign },
-    { id: "horarios", label: "Horarios", icon: CalendarClock },
+    { id: "alumnos", label: "Alumnos", icon: Users, cap: "alumnos" },
+    { id: "pagos", label: "Pagos", icon: DollarSign, cap: "pagos" },
+    { id: "horarios", label: "Horarios", icon: CalendarClock, cap: "horarios" },
     { id: "usuarios", label: "Usuarios", icon: ShieldCheck, admin: true },
+    { id: "miaplicacion", label: "Mi Aplicación", icon: Sparkles, admin: true },
     { id: "ajustes", label: "Ajustes", icon: SettingsIcon, admin: true },
   ];
-  const visible = nav.filter((n) => !n.admin || isAdmin);
+  const visible = nav.filter((n) => {
+    if (n.admin) return isAdmin;
+    if (n.cap) return can(n.cap);
+    return true;
+  });
+  const allowed = (t: Tab) => visible.some((n) => n.id === t);
 
   const academyName = settings?.academy_name || "DIAMANTE FC";
+  const who = profile?.full_name || profile?.username || "Sesión activa";
 
   return (
     <div className="min-h-screen bg-stone-100 flex flex-col md:flex-row font-body">
@@ -116,7 +130,7 @@ function Shell({
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === id
                   ? "bg-emerald-800 text-white border-l-4 border-amber-400"
                   : "text-emerald-200 hover:bg-emerald-800/60"
@@ -128,7 +142,7 @@ function Shell({
           ))}
         </nav>
         <div className="mt-auto hidden md:block border-t border-emerald-800 px-5 py-4">
-          <p className="text-emerald-300 text-xs truncate mb-2">{profileName || "Sesión activa"}</p>
+          <p className="text-emerald-300 text-xs truncate mb-2">{who}</p>
           <button
             onClick={signOut}
             className="flex items-center gap-1.5 text-emerald-200 hover:text-white text-sm"
@@ -152,16 +166,20 @@ function Shell({
             {tab === "dashboard" && (
               <Dashboard students={students} schedules={schedules} payments={payments} />
             )}
-            {tab === "alumnos" && <Alumnos students={students} reload={reloadStudents} />}
-            {tab === "pagos" && (
+            {tab === "alumnos" && allowed("alumnos") && (
+              <Alumnos students={students} reload={reloadStudents} />
+            )}
+            {tab === "pagos" && allowed("pagos") && (
               <Pagos students={students} payments={payments} reload={reloadPayments} />
             )}
-            {tab === "horarios" && <Horarios schedules={schedules} reload={reloadSchedules} />}
+            {tab === "horarios" && allowed("horarios") && (
+              <Horarios schedules={schedules} reload={reloadSchedules} />
+            )}
             {tab === "usuarios" && isAdmin && <Usuarios />}
+            {tab === "miaplicacion" && isAdmin && <MiAplicacion />}
             {tab === "ajustes" && isAdmin && <Ajustes settings={settings} reload={reloadSettings} />}
           </>
         )}
-        {/* Mobile sign-out */}
         <button
           onClick={signOut}
           className="md:hidden mt-8 flex items-center gap-1.5 text-stone-500 hover:text-stone-800 text-sm"

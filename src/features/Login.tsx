@@ -3,29 +3,19 @@ import { inputCls } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<"in" | "up">("in");
-  const [email, setEmail] = useState("");
+  const { signIn } = useAuth();
+  const [userOrEmail, setUserOrEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    setInfo(null);
     try {
-      if (mode === "in") {
-        const { error } = await signIn(email.trim(), password);
-        if (error) setErr(error);
-      } else {
-        const { error } = await signUp(email.trim(), password, fullName.trim());
-        if (error) setErr(error);
-        else setInfo("Cuenta creada. Si se pide confirmación por correo, revísalo y luego inicia sesión.");
-      }
+      const { error } = await signIn(userOrEmail, password);
+      if (error) setErr(error);
     } finally {
       setBusy(false);
     }
@@ -44,28 +34,18 @@ export default function Login() {
         </div>
 
         <form onSubmit={submit} className="bg-white rounded-lg border border-stone-200 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">
-            {mode === "in" ? "Iniciar sesión" : "Crear cuenta"}
-          </h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Iniciar sesión</h2>
 
-          {mode === "up" && (
-            <label className="block mb-3">
-              <span className="block text-xs font-medium text-stone-500 uppercase tracking-wide mb-1">
-                Nombre
-              </span>
-              <input className={inputCls} value={fullName} onChange={(e) => setFullName(e.target.value)} />
-            </label>
-          )}
           <label className="block mb-3">
             <span className="block text-xs font-medium text-stone-500 uppercase tracking-wide mb-1">
-              Correo
+              Usuario o correo
             </span>
             <input
-              type="email"
               required
+              autoCapitalize="none"
               className={inputCls}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={userOrEmail}
+              onChange={(e) => setUserOrEmail(e.target.value)}
             />
           </label>
           <label className="block mb-4">
@@ -75,7 +55,6 @@ export default function Login() {
             <input
               type="password"
               required
-              minLength={6}
               className={inputCls}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -83,27 +62,18 @@ export default function Login() {
           </label>
 
           {err && <p className="text-red-600 text-sm mb-3">{err}</p>}
-          {info && <p className="text-emerald-700 text-sm mb-3">{info}</p>}
 
           <button
             type="submit"
             disabled={busy}
             className="w-full bg-emerald-800 hover:bg-emerald-900 text-white text-sm font-medium py-2.5 rounded-md disabled:opacity-60"
           >
-            {busy ? "Procesando…" : mode === "in" ? "Entrar" : "Registrarme"}
+            {busy ? "Entrando…" : "Entrar"}
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === "in" ? "up" : "in");
-              setErr(null);
-              setInfo(null);
-            }}
-            className="w-full text-center text-xs text-stone-500 hover:text-stone-800 mt-4"
-          >
-            {mode === "in" ? "¿No tienes cuenta? Crear una" : "Ya tengo cuenta · Iniciar sesión"}
-          </button>
+          <p className="text-center text-xs text-stone-400 mt-4">
+            ¿No tienes acceso? Pídele a un administrador que te cree un usuario.
+          </p>
         </form>
       </div>
     </div>

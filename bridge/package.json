@@ -1,0 +1,14 @@
+{
+  "name": "academia-bridge",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Local worker that turns Mi Aplicación prompts into commits + deploys.",
+  "scripts": {
+    "start": "node index.mjs",
+    "once": "node index.mjs --once"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
