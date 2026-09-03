@@ -4,6 +4,10 @@ import type {
   Schedule,
   Payment,
   Settings,
+  Attendance,
+  BillingMode,
+  PaymentStatus,
+  PaymentMethod,
   AppRequest,
   AppPortal,
 } from "./types";
@@ -86,17 +90,84 @@ export async function fetchPayments(): Promise<Payment[]> {
   return data as Payment[];
 }
 
-// Upsert on the (student_id, year, month) unique key.
-export async function upsertPayment(
-  p: Omit<Payment, "id">,
-): Promise<Payment> {
+// Set (or clear) a student's charge status for a billing period.
+export async function setPaymentStatus(args: {
+  studentId: string;
+  mode: BillingMode;
+  period: string;
+  status: PaymentStatus;
+  method?: PaymentMethod | null;
+  amount?: number | null;
+  fromAttendance?: boolean;
+}): Promise<Payment> {
+  const paid = args.status === "pagado" || args.status === "parcial";
+  const row = {
+    student_id: args.studentId,
+    mode: args.mode,
+    period: args.period,
+    status: args.status,
+    paid_date: paid ? new Date().toISOString().slice(0, 10) : null,
+    method: paid ? args.method ?? null : null,
+    amount: paid ? args.amount ?? null : null,
+    from_attendance: args.fromAttendance ?? false,
+  };
   const { data, error } = await supabase
     .from("payments")
-    .upsert(p, { onConflict: "student_id,year,month" })
+    .upsert(row, { onConflict: "student_id,mode,period" })
     .select()
     .single();
   if (error) throw error;
   return data as Payment;
+}
+
+// Remove an unpaid, attendance-activated charge (used when unmarking presence).
+export async function clearAttendanceCharge(
+  studentId: string,
+  mode: BillingMode,
+  period: string,
+): Promise<void> {
+  await supabase
+    .from("payments")
+    .delete()
+    .eq("student_id", studentId)
+    .eq("mode", mode)
+    .eq("period", period)
+    .eq("from_attendance", true)
+    .in("status", ["pendiente", "atrasado"]);
+}
+
+// ---------- Attendance ----------
+export async function fetchAttendance(): Promise<Attendance[]> {
+  const { data, error } = await supabase.from("attendance").select("*");
+  if (error) throw error;
+  return data as Attendance[];
+}
+
+export async function setAttendance(
+  studentId: string,
+  category: string,
+  date: string,
+  present: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("attendance")
+    .upsert(
+      { student_id: studentId, category, date, present },
+      { onConflict: "student_id,date" },
+    );
+  if (error) throw error;
+}
+
+// ---------- Photo upload (Supabase Storage) ----------
+export async function uploadStudentPhoto(file: File): Promise<string> {
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("student-photos")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (error) throw error;
+  const { data } = supabase.storage.from("student-photos").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 // ---------- Settings ----------

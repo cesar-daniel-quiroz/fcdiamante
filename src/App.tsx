@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
+  ClipboardCheck,
   DollarSign,
   CalendarClock,
   Settings as SettingsIcon,
@@ -10,11 +11,25 @@ import {
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import type { Student, Schedule, Payment, Settings, Capability } from "@/lib/types";
-import { fetchStudents, fetchSchedules, fetchPayments, fetchSettings } from "@/lib/db";
+import type {
+  Student,
+  Schedule,
+  Payment,
+  Settings,
+  Attendance,
+  Capability,
+} from "@/lib/types";
+import {
+  fetchStudents,
+  fetchSchedules,
+  fetchPayments,
+  fetchSettings,
+  fetchAttendance,
+} from "@/lib/db";
 import Login from "@/features/Login";
 import Dashboard from "@/features/Dashboard";
 import Alumnos from "@/features/Alumnos";
+import Asistencia from "@/features/Asistencia";
 import Pagos from "@/features/Pagos";
 import Horarios from "@/features/Horarios";
 import Usuarios from "@/features/Usuarios";
@@ -24,6 +39,7 @@ import MiAplicacion from "@/features/MiAplicacion";
 type Tab =
   | "dashboard"
   | "alumnos"
+  | "asistencia"
   | "pagos"
   | "horarios"
   | "usuarios"
@@ -50,6 +66,7 @@ function Shell() {
   const [students, setStudents] = useState<Student[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +74,12 @@ function Shell() {
   const reloadStudents = useCallback(async () => setStudents(await fetchStudents()), []);
   const reloadSchedules = useCallback(async () => setSchedules(await fetchSchedules()), []);
   const reloadPayments = useCallback(async () => setPayments(await fetchPayments()), []);
+  const reloadAttendance = useCallback(async () => setAttendance(await fetchAttendance()), []);
   const reloadSettings = useCallback(async () => setSettings(await fetchSettings()), []);
+  // Attendance changes can also activate a charge, so refresh both together.
+  const reloadAttendanceAndPayments = useCallback(async () => {
+    await Promise.all([reloadAttendance(), reloadPayments()]);
+  }, [reloadAttendance, reloadPayments]);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +88,7 @@ function Shell() {
           reloadStudents(),
           reloadSchedules(),
           reloadPayments(),
+          reloadAttendance(),
           reloadSettings(),
         ]);
       } catch (e) {
@@ -74,7 +97,9 @@ function Shell() {
         setLoaded(true);
       }
     })();
-  }, [reloadStudents, reloadSchedules, reloadPayments, reloadSettings]);
+  }, [reloadStudents, reloadSchedules, reloadPayments, reloadAttendance, reloadSettings]);
+
+  const mode = settings?.billing_mode ?? "monthly";
 
   const nav: {
     id: Tab;
@@ -85,6 +110,7 @@ function Shell() {
   }[] = [
     { id: "dashboard", label: "Panel", icon: LayoutDashboard },
     { id: "alumnos", label: "Alumnos", icon: Users, cap: "alumnos" },
+    { id: "asistencia", label: "Asistencia", icon: ClipboardCheck, cap: "asistencia" },
     { id: "pagos", label: "Pagos", icon: DollarSign, cap: "pagos" },
     { id: "horarios", label: "Horarios", icon: CalendarClock, cap: "horarios" },
     { id: "usuarios", label: "Usuarios", icon: ShieldCheck, admin: true },
@@ -164,13 +190,33 @@ function Shell() {
         ) : (
           <>
             {tab === "dashboard" && (
-              <Dashboard students={students} schedules={schedules} payments={payments} />
+              <Dashboard
+                students={students}
+                schedules={schedules}
+                payments={payments}
+                mode={mode}
+              />
             )}
             {tab === "alumnos" && allowed("alumnos") && (
               <Alumnos students={students} reload={reloadStudents} />
             )}
+            {tab === "asistencia" && allowed("asistencia") && (
+              <Asistencia
+                students={students}
+                attendance={attendance}
+                payments={payments}
+                reload={reloadAttendanceAndPayments}
+                mode={mode}
+              />
+            )}
             {tab === "pagos" && allowed("pagos") && (
-              <Pagos students={students} payments={payments} reload={reloadPayments} />
+              <Pagos
+                students={students}
+                payments={payments}
+                reload={reloadPayments}
+                mode={mode}
+                academyName={academyName}
+              />
             )}
             {tab === "horarios" && allowed("horarios") && (
               <Horarios schedules={schedules} reload={reloadSchedules} />

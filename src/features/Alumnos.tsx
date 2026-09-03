@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Upload } from "lucide-react";
 import { Modal, Field, StatusPill, inputCls } from "@/components/ui";
 import { CATEGORIES } from "@/lib/types";
 import type { Student } from "@/lib/types";
-import { insertStudent, updateStudent, deleteStudent } from "@/lib/db";
+import { insertStudent, updateStudent, deleteStudent, uploadStudentPhoto } from "@/lib/db";
 
 export default function Alumnos({
   students,
@@ -87,8 +87,23 @@ export default function Alumnos({
               {filtered.map((s) => (
                 <tr key={s.id} className="border-t border-stone-100">
                   <td className="px-4 py-3 font-medium text-slate-800">
-                    {s.name}
-                    <div className="text-stone-400 text-xs sm:hidden">{s.category}</div>
+                    <div className="flex items-center gap-2.5">
+                      {s.photo_url ? (
+                        <img
+                          src={s.photo_url}
+                          alt={s.name}
+                          className="h-8 w-8 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <span className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center shrink-0">
+                          {s.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <div>
+                        {s.name}
+                        <div className="text-stone-400 text-xs sm:hidden">{s.category}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell text-stone-600">{s.category}</td>
                   <td className="px-4 py-3 hidden md:table-cell text-stone-600">{s.parent}</td>
@@ -152,27 +167,66 @@ function StudentForm({
       fee: "" as number | string,
       status: "activo" as Student["status"],
       joined: new Date().toISOString().slice(0, 10),
+      birthdate: "",
+      photo_url: "",
+      emergency_contact: "",
+      emergency_phone: "",
+      notes: "",
     },
   );
+  const [uploading, setUploading] = useState(false);
 
   const set =
     (k: string) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadStudentPhoto(file);
+      setForm((f) => ({ ...f, photo_url: url }));
+    } catch (err) {
+      alert("No se pudo subir la foto: " + (err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
+    const nn = (v: unknown) => (v === "" || v == null ? null : v);
     onSave({
       ...form,
       age: Number(form.age) || 0,
       fee: Number(form.fee) || 0,
+      birthdate: nn(form.birthdate),
+      photo_url: nn(form.photo_url),
+      emergency_contact: nn(form.emergency_contact),
+      emergency_phone: nn(form.emergency_phone),
+      notes: nn(form.notes),
     } as Student | Omit<Student, "id">);
   }
 
   return (
     <Modal title={initial ? "Editar alumno" : "Nuevo alumno"} onClose={onClose}>
       <form onSubmit={submit}>
+        <div className="flex items-center gap-4 mb-4">
+          {form.photo_url ? (
+            <img src={form.photo_url} alt="" className="h-16 w-16 rounded-full object-cover" />
+          ) : (
+            <span className="h-16 w-16 rounded-full bg-emerald-100 text-emerald-800 text-xl font-semibold flex items-center justify-center">
+              {(form.name || "?").charAt(0).toUpperCase()}
+            </span>
+          )}
+          <label className="flex items-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-medium px-3 py-2 rounded-md cursor-pointer">
+            <Upload size={15} /> {uploading ? "Subiendo…" : "Foto"}
+            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" disabled={uploading} />
+          </label>
+        </div>
         <Field label="Nombre completo">
           <input required className={inputCls} value={form.name} onChange={set("name")} />
         </Field>
@@ -199,11 +253,27 @@ function StudentForm({
             <input type="number" min="0" className={inputCls} value={form.fee} onChange={set("fee")} />
           </Field>
         </div>
-        <Field label="Estado">
-          <select className={inputCls} value={form.status} onChange={set("status")}>
-            <option value="activo">Activo</option>
-            <option value="inactivo">Inactivo</option>
-          </select>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Fecha de nacimiento">
+            <input type="date" className={inputCls} value={form.birthdate || ""} onChange={set("birthdate")} />
+          </Field>
+          <Field label="Estado">
+            <select className={inputCls} value={form.status} onChange={set("status")}>
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Contacto de emergencia">
+            <input className={inputCls} value={form.emergency_contact || ""} onChange={set("emergency_contact")} />
+          </Field>
+          <Field label="Tel. emergencia">
+            <input className={inputCls} value={form.emergency_phone || ""} onChange={set("emergency_phone")} />
+          </Field>
+        </div>
+        <Field label="Notas">
+          <textarea className={inputCls} rows={2} value={form.notes || ""} onChange={set("notes")} />
         </Field>
         <div className="flex justify-end gap-2 mt-4">
           <button

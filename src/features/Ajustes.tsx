@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Upload, Trash2 } from "lucide-react";
 import { Field, inputCls } from "@/components/ui";
-import type { Settings } from "@/lib/types";
+import type { Settings, BillingMode } from "@/lib/types";
 import { saveSettings } from "@/lib/db";
 
 // Logos are stored inline as a data URL in the settings row — small and avoids
@@ -17,6 +17,7 @@ export default function Ajustes({
 }) {
   const [name, setName] = useState(settings?.academy_name || "DIAMANTE FC");
   const [logo, setLogo] = useState<string | null>(settings?.logo_url ?? null);
+  const [billingMode, setBillingMode] = useState<BillingMode>(settings?.billing_mode || "monthly");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -39,7 +40,11 @@ export default function Ajustes({
     setBusy(true);
     setMsg(null);
     try {
-      await saveSettings({ academy_name: name.trim() || "DIAMANTE FC", logo_url: logo });
+      await saveSettings({
+        academy_name: name.trim() || "DIAMANTE FC",
+        logo_url: logo,
+        billing_mode: billingMode,
+      });
       await reload();
       setMsg("Guardado.");
     } catch (e) {
@@ -57,6 +62,17 @@ export default function Ajustes({
       <div className="bg-white rounded-lg border border-stone-200 p-5">
         <Field label="Nombre de la academia">
           <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+
+        <Field label="Modo de cobro">
+          <select
+            className={inputCls}
+            value={billingMode}
+            onChange={(e) => setBillingMode(e.target.value as BillingMode)}
+          >
+            <option value="monthly">Mensual</option>
+            <option value="weekly">Semanal (activado por asistencia)</option>
+          </select>
         </Field>
 
         <span className="block text-xs font-medium text-stone-500 uppercase tracking-wide mb-1">

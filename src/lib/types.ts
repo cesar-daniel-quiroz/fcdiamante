@@ -16,7 +16,15 @@ export const DAYS = [
 ] as const;
 
 export type StudentStatus = "activo" | "inactivo";
-export type PaymentStatus = "pagado" | "pendiente" | "atrasado";
+export type PaymentStatus = "pagado" | "pendiente" | "atrasado" | "parcial";
+export type PaymentMethod = "efectivo" | "transferencia" | "tarjeta";
+export type BillingMode = "weekly" | "monthly";
+
+export const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
+  { key: "efectivo", label: "Efectivo" },
+  { key: "transferencia", label: "Transferencia" },
+  { key: "tarjeta", label: "Tarjeta" },
+];
 
 export type Student = {
   id: string;
@@ -28,6 +36,19 @@ export type Student = {
   fee: number;
   status: StudentStatus;
   joined: string; // yyyy-mm-dd
+  birthdate: string | null;
+  photo_url: string | null;
+  emergency_contact: string | null;
+  emergency_phone: string | null;
+  notes: string | null;
+};
+
+export type Attendance = {
+  id: string;
+  student_id: string;
+  category: string | null;
+  date: string; // yyyy-mm-dd
+  present: boolean;
 };
 
 export type Schedule = {
@@ -40,23 +61,28 @@ export type Schedule = {
   field: string;
 };
 
-// One record per student per month. Keyed in-app by `${year}-${month}` (month 0-11).
+// One record per student per billing period. `period` is "YYYY-MM" (monthly) or
+// "YYYY-Www" (ISO week). `mode` says which cadence the row belongs to.
 export type Payment = {
   id: string;
   student_id: string;
-  year: number;
-  month: number; // 0-11
+  mode: BillingMode;
+  period: string;
   status: PaymentStatus;
   paid_date: string | null;
+  method: PaymentMethod | null;
+  amount: number | null;
+  from_attendance: boolean;
 };
 
 export type Role = "admin" | "coach";
 
 // Per-section capabilities a coach can be granted. Admins always have all.
-export type Capability = "alumnos" | "pagos" | "horarios";
+export type Capability = "alumnos" | "asistencia" | "pagos" | "horarios";
 
 export const CAP_LIST: { key: Capability; label: string; coachDefault: boolean }[] = [
   { key: "alumnos", label: "Gestionar alumnos", coachDefault: true },
+  { key: "asistencia", label: "Tomar asistencia", coachDefault: true },
   { key: "horarios", label: "Gestionar horarios", coachDefault: true },
   { key: "pagos", label: "Gestionar pagos", coachDefault: false },
 ];
@@ -84,6 +110,7 @@ export type Settings = {
   id: string;
   academy_name: string;
   logo_url: string | null;
+  billing_mode: BillingMode;
 };
 
 export type RequestStatus =

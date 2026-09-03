@@ -41,3 +41,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     )}
   </React.StrictMode>,
 );
+
+// Register the service worker for installable/offline support (prod only).
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* offline support is best-effort */
+    });
+  });
+}
