@@ -1,9 +1,14 @@
 export const CATEGORIES = [
-  "Tee-Ball",
-  "Pitcheo Coach",
-  "Kid Pitch",
-  "Juvenil",
-  "Adulto",
+  "3-4 Años",
+  "5-6 Años Rookies",
+  "5-6 Años",
+  "7-8 Años Rookies",
+  "7-8 Años",
+  "9-10 Años Rookies",
+  "9-10 Años",
+  "11-12 Años Rookies",
+  "11-12 Años",
+  "11-12 Años Nuevos Valores",
 ] as const;
 
 export const MONTHS = [
