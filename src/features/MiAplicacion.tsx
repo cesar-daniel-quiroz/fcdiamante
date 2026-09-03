@@ -192,12 +192,15 @@ export default function MiAplicacion() {
           return (
             <div key={r.id} className="bg-white rounded-lg border border-stone-200 p-4">
               <div className="flex items-start justify-between gap-3">
-                <p className="text-sm text-slate-800 font-medium">
-                  {r.kind === "revert" && (
-                    <span className="text-stone-400 mr-1">↩</span>
-                  )}
-                  {r.prompt}
-                </p>
+                <div>
+                  <span className="block text-[10px] uppercase tracking-widest text-stone-400 mb-0.5">
+                    Tú
+                  </span>
+                  <p className="text-sm text-slate-800 font-medium">
+                    {r.kind === "revert" && <span className="text-stone-400 mr-1">↩</span>}
+                    {r.prompt}
+                  </p>
+                </div>
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${s.cls}`}
                 >
@@ -214,7 +217,12 @@ export default function MiAplicacion() {
               </div>
 
               {r.result_summary && (
-                <p className="text-xs text-stone-600 mt-2">{r.result_summary}</p>
+                <div className="mt-3 border-t border-stone-100 pt-2">
+                  <span className="block text-[10px] uppercase tracking-widest text-emerald-700 mb-0.5">
+                    Agente
+                  </span>
+                  <p className="text-xs text-stone-600 whitespace-pre-wrap">{r.result_summary}</p>
+                </div>
               )}
               {r.error && <p className="text-xs text-red-600 mt-2">{r.error}</p>}
 

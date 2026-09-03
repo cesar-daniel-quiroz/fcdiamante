@@ -13,3 +13,7 @@ vite.config.ts.timestamp-*.mjs
 
 # ts build info
 tsconfig.tsbuildinfo
+
+# bridge persistent Claude session id + logs
+bridge/.session
+bridge/logs/

@@ -16,7 +16,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { execSync, execFileSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -58,16 +58,50 @@ async function update(id, patch) {
   await db.from("app_requests").update(patch).eq("id", id);
 }
 
-// Run one prompt through the Claude Code CLI in unattended mode.
+// One persistent Claude session so the agent keeps full context/history across
+// prompts (like a real chat), instead of starting cold each time.
+const SESSION_FILE = join(HERE, ".session");
+const getSession = () => {
+  try {
+    return existsSync(SESSION_FILE) ? readFileSync(SESSION_FILE, "utf8").trim() || null : null;
+  } catch {
+    return null;
+  }
+};
+const setSession = (id) => {
+  try {
+    if (id) writeFileSync(SESSION_FILE, id);
+  } catch { /* ignore */ }
+};
+
+// Run one prompt through the Claude Code CLI, resuming the ongoing session so it
+// remembers previous prompts and its own edits. Returns { text, sessionId }.
+// --dangerously-skip-permissions: the bridge is intentional automation on your
+// own repo. Everything it does is a commit you can revert from the app.
 function runClaude(prompt) {
-  // --dangerously-skip-permissions: the bridge is intentional automation on your
-  // own repo. Everything it does is a commit you can revert from the app.
-  const out = execFileSync(
-    "claude",
-    ["-p", prompt, "--dangerously-skip-permissions"],
-    { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
-  );
-  return out.trim();
+  const baseArgs = ["-p", prompt, "--dangerously-skip-permissions", "--output-format", "json"];
+  const sid = getSession();
+  const args = sid ? [...baseArgs, "--resume", sid] : baseArgs;
+  let out;
+  try {
+    out = execFileSync("claude", args, { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  } catch (e) {
+    // A stale/invalid session id makes --resume fail — retry once from a fresh session.
+    if (sid) {
+      out = execFileSync("claude", baseArgs, { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    } else {
+      throw e;
+    }
+  }
+  let text = out.trim();
+  let sessionId = null;
+  try {
+    const j = JSON.parse(out);
+    text = (j.result ?? "").trim() || text;
+    sessionId = j.session_id ?? null;
+  } catch { /* not JSON; keep raw text */ }
+  if (sessionId) setSession(sessionId);
+  return { text, sessionId };
 }
 
 async function processPrompt(req) {
@@ -77,7 +111,7 @@ async function processPrompt(req) {
 
   let summary = "";
   try {
-    summary = runClaude(req.prompt);
+    summary = runClaude(req.prompt).text;
   } catch (e) {
     await update(req.id, {
       status: "error",
@@ -97,7 +131,7 @@ async function processPrompt(req) {
     await update(req.id, {
       status: "error",
       finished_at: new Date().toISOString(),
-      result_summary: summary.slice(0, 800),
+      result_summary: summary.slice(0, 12000),
       error: "La compilación falló; los cambios se descartaron. " + String(e.stdout || e.message).slice(0, 400),
     });
     return;
@@ -110,7 +144,7 @@ async function processPrompt(req) {
       status: "completado",
       finished_at: new Date().toISOString(),
       result_sha: base,
-      result_summary: (summary || "Sin cambios en el código.").slice(0, 800),
+      result_summary: (summary || "Sin cambios en el código.").slice(0, 12000),
       deploy_url: DEPLOY_URL,
     });
     return;
@@ -129,7 +163,7 @@ async function processPrompt(req) {
     status: "completado",
     finished_at: new Date().toISOString(),
     result_sha: result,
-    result_summary: summary.slice(0, 800),
+    result_summary: summary.slice(0, 12000),
     deploy_url: DEPLOY_URL,
     error: deployErr ? "Desplegado localmente; push/deploy falló: " + deployErr : null,
   });
