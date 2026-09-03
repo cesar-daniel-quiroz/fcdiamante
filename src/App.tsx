@@ -11,6 +11,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import type {
   Student,
   Schedule,
@@ -82,17 +83,38 @@ function Shell() {
   }, [reloadAttendance, reloadPayments]);
 
   useEffect(() => {
+    const loadAll = () =>
+      Promise.all([
+        reloadStudents(),
+        reloadSchedules(),
+        reloadPayments(),
+        reloadAttendance(),
+        reloadSettings(),
+      ]);
+    // A JWT/clock-skew error means the cached token's timestamps look off to the
+    // server. Refresh the session once and retry before surfacing an error.
+    const isTokenError = (m: string) =>
+      /jwt|issued at future|token|exp|iat|401/i.test(m);
+
     (async () => {
       try {
-        await Promise.all([
-          reloadStudents(),
-          reloadSchedules(),
-          reloadPayments(),
-          reloadAttendance(),
-          reloadSettings(),
-        ]);
+        await loadAll();
       } catch (e) {
-        setError((e as Error).message);
+        const msg = (e as Error).message || "";
+        if (isTokenError(msg)) {
+          try {
+            await supabase.auth.refreshSession();
+            await loadAll();
+            setError(null);
+            return;
+          } catch {
+            setError(
+              "Sesión expirada o reloj del dispositivo desfasado. Cierra sesión y vuelve a entrar; revisa que la fecha y hora del dispositivo estén en automático.",
+            );
+            return;
+          }
+        }
+        setError(msg);
       } finally {
         setLoaded(true);
       }
