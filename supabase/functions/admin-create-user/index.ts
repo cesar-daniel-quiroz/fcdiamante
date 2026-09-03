@@ -2,11 +2,24 @@
 // Coaches sign in with just a username, mapped to a synthetic internal email.
 // The service role key is auto-injected by Supabase — no secret to paste.
 //
-// Deploy: supabase functions deploy admin-create-user --project-ref zkxoyiiccqsovdtkxgpn
+// Deploy (CLI): supabase functions deploy admin-create-user --project-ref zkxoyiiccqsovdtkxgpn
+// Or paste this whole file into the Dashboard → Edge Functions editor (self-contained).
 //
 // Body: { username, password, full_name?, role?: "admin"|"coach", permissions?, email? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, json } from "../_shared/cors.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -55,8 +68,6 @@ Deno.serve(async (req) => {
     body.permissions && typeof body.permissions === "object"
       ? (body.permissions as Record<string, boolean>)
       : {};
-  // An explicit email overrides the username→synthetic-email mapping (for admins
-  // who want a real recoverable address).
   const email = body.email
     ? String(body.email).trim().toLowerCase()
     : `${username}@${COACH_DOMAIN}`;
@@ -75,8 +86,6 @@ Deno.serve(async (req) => {
   if (error || !created?.user)
     return json({ error: error?.message ?? "No se pudo crear el usuario" }, 400);
 
-  // The trigger inserted the profile as a coach; set the requested role +
-  // permissions + username with the service role (bypasses RLS).
   const { error: upErr } = await admin
     .from("profiles")
     .update({ role, permissions, username, full_name: fullName })
